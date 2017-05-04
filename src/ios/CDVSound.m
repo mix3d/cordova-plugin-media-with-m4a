@@ -24,7 +24,8 @@
 #define HTTP_SCHEME_PREFIX @"http://"
 #define HTTPS_SCHEME_PREFIX @"https://"
 #define CDVFILE_PREFIX @"cdvfile://"
-#define RECORDING_WAV @"wav"
+// #define RECORDING_M4A @"wav"
+#define RECORDING_M4A @"m4a"
 
 @implementation CDVSound
 
@@ -38,9 +39,9 @@
     NSString* docsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
 
     // first check for correct extension
-    if ([[resourcePath pathExtension] caseInsensitiveCompare:RECORDING_WAV] != NSOrderedSame) {
+    if ([[resourcePath pathExtension] caseInsensitiveCompare:RECORDING_M4A] != NSOrderedSame) {
         resourceURL = nil;
-        NSLog(@"Resource for recording must have %@ extension", RECORDING_WAV);
+        NSLog(@"Resource for recording must have %@ extension", RECORDING_M4A);
     } else if ([resourcePath hasPrefix:DOCUMENTS_SCHEME_PREFIX]) {
         // try to find Documents:// resources
         filePath = [resourcePath stringByReplacingOccurrencesOfString:DOCUMENTS_SCHEME_PREFIX withString:[NSString stringWithFormat:@"%@/", docsPath]];
@@ -49,6 +50,7 @@
         CDVFile *filePlugin = [self.commandDelegate getCommandInstance:@"File"];
         CDVFilesystemURL *url = [CDVFilesystemURL fileSystemURLWithString:resourcePath];
         filePath = [filePlugin filesystemPathForURL:url];
+        NSLog(@"Found CDVFile: use resource '%@' from the documents folder with path = %@", resourcePath, filePath);
         if (filePath == nil) {
             resourceURL = [NSURL URLWithString:resourcePath];
         }
@@ -69,6 +71,9 @@
         // create resourceURL
         resourceURL = [NSURL fileURLWithPath:filePath];
     }
+
+    NSLog(@"Final Files: resourceURL = '%@' , with path = %@", resourceURL, filePath);
+
     return resourceURL;
 }
 
@@ -94,6 +99,7 @@
         CDVFilesystemURL *url = [CDVFilesystemURL fileSystemURLWithString:resourcePath];
         filePath = [filePlugin filesystemPathForURL:url];
         if (filePath == nil) {
+            NSLog(@"CDV File converted from '%@' --to-- '%@'", resourcePath, filePath);
             resourceURL = [NSURL URLWithString:resourcePath];
         }
     } else {
@@ -122,8 +128,8 @@
         // try to access file
         NSFileManager* fMgr = [NSFileManager defaultManager];
         if (![fMgr fileExistsAtPath:filePath]) {
+            NSLog(@"Unknown resource '%@' -- '%@'", resourcePath, filePath);
             resourceURL = nil;
-            NSLog(@"Unknown resource '%@'", resourcePath);
         }
     }
 
@@ -666,10 +672,12 @@
             NSDictionary *audioSettings = @{AVFormatIDKey: @(kAudioFormatMPEG4AAC),
                                              AVSampleRateKey: @(44100),
                                              AVNumberOfChannelsKey: @(1),
-                                             AVEncoderAudioQualityKey: @(AVAudioQualityMedium)
+                                             AVEncoderAudioQualityKey: @(AVAudioQualityLow)
                                              };
-            audioFile.recorder = [[CDVAudioRecorder alloc] initWithURL:audioFile.resourceURL settings:nil error:&error];
+            audioFile.recorder = [[CDVAudioRecorder alloc] initWithURL:audioFile.resourceURL settings:audioSettings error:&error];
 
+            NSLog(@"Started recording audio sample '%@'", audioFile.resourcePath);
+            
             bool recordingSuccess = NO;
             if (error == nil) {
                 audioFile.recorder.delegate = weakSelf;
