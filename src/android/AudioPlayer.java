@@ -73,9 +73,9 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     // Media error codes
     private static int MEDIA_ERR_NONE_ACTIVE    = 0;
     private static int MEDIA_ERR_ABORTED        = 1;
-//    private static int MEDIA_ERR_NETWORK        = 2;
-//    private static int MEDIA_ERR_DECODE         = 3;
-//    private static int MEDIA_ERR_NONE_SUPPORTED = 4;
+    private static int MEDIA_ERR_NETWORK        = 2;
+    private static int MEDIA_ERR_DECODE         = 3;
+    private static int MEDIA_ERR_NONE_SUPPORTED = 4;
 
     private AudioHandler handler;           // The AudioHandler object
     private String id;                      // The id of this player (used to identify Media object in JavaScript)
@@ -93,6 +93,15 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     private boolean prepareOnly = true;     // playback after file prepare flag
     private int seekOnPrepared = 0;     // seek to this location once media is prepared
 
+    private int channels = 1; // single channel
+    private int sampleRate = 44100; // 44.1 kHz for decent sound, similar to stock iOS media plugin    
+    private int bitRate = 32000; // low bit rate
+
+    //internal code to use to set bitrate recording info
+    private static final int LOW = 1;
+    private static final int MED = 2;
+    private static final int HIGH = 4;
+
     /**
      * Constructor.
      *
@@ -103,17 +112,43 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
         this.handler = handler;
         this.id = id;
         this.audioFile = file;
+        this.recorder = new MediaRecorder();
         this.tempFiles = new LinkedList<String>();
+        setRecordingQuality(LOW);
     }
 
-    private String generateTempFile() {
-      String tempFileName = null;
-      if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-          tempFileName = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tmprecording-" + System.currentTimeMillis() + ".3gp";
-      } else {
-          tempFileName = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/tmprecording-" + System.currentTimeMillis() + ".3gp";
-      }
-      return tempFileName;
+    private void setRecordingQuality(int q){
+        switch(q){
+            case LOW:
+                this.channels = 1;
+                this.sampleRate = 16000;
+                this.bitRate = 8192;
+                break;
+            case HIGH:
+                this.channels = 2;
+                this.sampleRate = 96000;
+                this.bitRate = 64000;
+                break;
+            case MED:
+            default:
+                this.channels = 1;
+                this.sampleRate = 44100;
+                this.bitRate = 32000;
+        }
+    }
+
+    private String generateTempFile(String file) {
+
+        //issue if destination mount does not match temp
+
+        String tempFileName = null;
+        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+            tempFileName = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tmprecording-" + System.currentTimeMillis() + ".m4a";
+        } else {
+            tempFileName = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/tmprecording-" + System.currentTimeMillis() + ".m4a";
+        }
+        Log.d(LOG_TAG,"Temp file generated, at "+tempFileName);
+        return tempFileName;
     }
 
     /**
@@ -139,7 +174,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     /**
      * Start recording the specified file.
      *
-     * @param file              The name of the file
+     * @param file              The name of the file, should use .m4a extension
      */
     public void startRecording(String file) {
         switch (this.mode) {
@@ -148,13 +183,46 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             sendErrorStatus(MEDIA_ERR_ABORTED);
             break;
         case NONE:
+
+
+            //NEW
+            // if file exists, delete it    
+            // Only new file are created with startRecording    
+            File f = new File(file);    
+            f.delete();
+
             this.audioFile = file;
             this.recorder = new MediaRecorder();
             this.recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            this.recorder.setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS); // RAW_AMR);
-            this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC); //AMR_NB);
-            this.tempFile = generateTempFile();
-            this.recorder.setOutputFile(this.tempFile);
+            // this.tempFile = generateTempFile();
+
+            //check filename for .m4a
+            if(!file.endsWith(".m4a") || !file.endsWith(".amr")){
+                LOG.d(LOG_TAG, "AudioPlayer Error: Incorrect file container. Should end with .m4a or .amr");
+                sendErrorStatus(MEDIA_ERR_ABORTED);
+                return;
+            
+            }
+
+            if(file.endsWith(".m4a")){
+                //Modified by REM & Mix3d 06/15/2015 - 08/01/2016 to generate MPEG_4 output                
+                this.recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);               
+                this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);    
+                this.recorder.setAudioChannels(this.channels);     
+                this.recorder.setAudioSamplingRate(this.sampleRate); 
+                this.recorder.setAudioEncodingBitRate(this.bitRate);
+            }
+            else{
+                this.recorder.setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS); // RAW_AMR);
+                this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC); //AMR_NB);
+            }
+
+            this.tempFile = generateTempFile(file);
+
+            // this.recorder.setOutputFile(this.tempFile);
+            //CHANGED to save directly to the specified file, means no pausing the recording for now.
+            this.recorder.setOutputFile(this.audioFile);
+
             try {
                 this.recorder.prepare();
                 this.recorder.start();
@@ -181,7 +249,9 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
      */
     public void moveFile(String file) {
         /* this is a hack to save the file as the specified name */
+        LOG.d(LOG_TAG,"starting to move file: "+file);
 
+        //issue if destination mount does not match temp
         if (!file.startsWith("/")) {
             if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
                 file = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + file;
@@ -189,6 +259,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
                 file = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/" + file;
             }
         }
+        LOG.d(LOG_TAG,"updated location: "+file);
 
         int size = this.tempFiles.size();
         LOG.d(LOG_TAG, "size = " + size);
@@ -198,7 +269,10 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             String logMsg = "renaming " + this.tempFile + " to " + file;
             LOG.d(LOG_TAG, logMsg);
             File f = new File(this.tempFile);
-            if (!f.renameTo(new File(file))) LOG.e(LOG_TAG, "FAILED " + logMsg);
+            if (!f.renameTo(new File(file))){
+                LOG.e(LOG_TAG, "FAILED " + logMsg);
+                //attempt a different move method?
+            }
         }
         // more than one file so the user must have pause recording. We'll need to concat files.
         else {
@@ -255,6 +329,27 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
     }
 
     /**
+     * Append temporary recorded file to specified filename
+     *
+     * @param file
+     */
+    // public void appendM4AFile(String file) {
+
+    //     if (!file.startsWith("/")) {
+    //         if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
+    //             file = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + file;
+    //         } else {
+    //             file = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/" + file;
+    //         }
+    //     }
+
+    //     String logMsg = "appending" + this.tempFile + " to " + file;
+    //     Log.d(LOG_TAG, logMsg);
+    //     // mp4ParserWrapper.append(file, this.tempFile);
+
+    // }
+
+    /**
      * Stop/Pause recording and save to the file specified when recording started.
      */
     public void stopRecording(boolean stop) {
@@ -267,10 +362,11 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
                 if (!this.tempFiles.contains(this.tempFile)) {
                     this.tempFiles.add(this.tempFile);
                 }
+                // this.tempFiles.add(this.tempFile);
                 if (stop) {
                     LOG.d(LOG_TAG, "stopping recording");
                     this.setState(STATE.MEDIA_STOPPED);
-                    this.moveFile(this.audioFile);
+                    // this.moveFile(this.audioFile);
                 } else {
                     LOG.d(LOG_TAG, "pause recording");
                     this.setState(STATE.MEDIA_PAUSED);

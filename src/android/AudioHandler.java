@@ -72,6 +72,9 @@ public class AudioHandler extends CordovaPlugin {
     private String recordId;
     private String fileUriStr;
 
+    private int audioChannels;      
+    private int audioSampleRate;
+
     /**
      * Constructor.
      */
@@ -79,6 +82,9 @@ public class AudioHandler extends CordovaPlugin {
         this.players = new HashMap<String, AudioPlayer>();
         this.pausedForPhone = new ArrayList<AudioPlayer>();
         this.pausedForFocus = new ArrayList<AudioPlayer>();
+
+        this.audioChannels = 1;
+        this.audioSampleRate = 44100;
     }
 
 
