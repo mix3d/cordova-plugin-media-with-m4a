@@ -1,7 +1,8 @@
 {
   "name": "cordova-plugin-media",
-  "version": "2.3.1-dev",
+  "version": "3.0.2-dev",
   "description": "Cordova Media Plugin",
+  "types": "./types/index.d.ts",
   "cordova": {
     "id": "cordova-plugin-media",
     "platforms": [
@@ -42,7 +43,17 @@
   },
   "author": "Apache Software Foundation",
   "license": "Apache-2.0",
+  "engines": {
+    "cordovaDependencies": {
+      "4.0.0": {
+        "cordova": ">100"
+      },
+      "3.0.0": {
+        "cordova-android": ">=6.1.0"
+      }
+    }
+  },
   "devDependencies": {
-    "jshint": "^2.6.0" 
+    "jshint": "^2.6.0"
   }
 }
