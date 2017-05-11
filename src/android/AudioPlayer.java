@@ -114,7 +114,6 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
         this.audioFile = file;
         this.recorder = new MediaRecorder();
         this.tempFiles = new LinkedList<String>();
-        setRecordingQuality(LOW);
     }
 
     private void setRecordingQuality(int q){
@@ -147,7 +146,7 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
         } else {
             tempFileName = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/tmprecording-" + System.currentTimeMillis() + ".m4a";
         }
-        Log.d(LOG_TAG,"Temp file generated, at "+tempFileName);
+        LOG.d(LOG_TAG,"Temp file generated, at "+tempFileName);
         return tempFileName;
     }
 
@@ -197,11 +196,10 @@ public class AudioPlayer implements OnCompletionListener, OnPreparedListener, On
             // this.tempFile = generateTempFile();
 
             //check filename for .m4a
-            if(!file.endsWith(".m4a") || !file.endsWith(".amr")){
-                LOG.d(LOG_TAG, "AudioPlayer Error: Incorrect file container. Should end with .m4a or .amr");
+            if(!file.endsWith(".m4a") && !file.endsWith(".amr")){
+                LOG.d(LOG_TAG, "AudioPlayer Error: Incorrect file container. ("+file+") Should end with .m4a or .amr");
                 sendErrorStatus(MEDIA_ERR_ABORTED);
                 return;
-            
             }
 
             if(file.endsWith(".m4a")){
